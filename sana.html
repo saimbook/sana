@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>বাংলা POS সিস্টেম</title>
+<style>
+  body { font-family: 'SolaimanLipi', Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0;}
+  header { background: linear-gradient(45deg, #4285f4, #34a853); color: white; padding: 15px; text-align: center;}
+  #loginSection, #posSection, #settingsSection { max-width: 900px; margin: 20px auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px #aaa;}
+  h2 { margin-top: 0;}
+  input, select, button, textarea { font-size: 16px; padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px;}
+  button { background: #4285f4; color: white; border: none; cursor: pointer; }
+  button:hover { background: #3367d6;}
+  .hidden { display: none;}
+  table { width: 100%; border-collapse: collapse; margin-top: 10px;}
+  th, td { padding: 10px; border: 1px solid #ccc; text-align: center;}
+  #cartTable th, #cartTable td { text-align: left;}
+  img.logo-preview { max-height: 50px; margin-bottom: 10px;}
+  .flex-row { display: flex; gap: 10px; align-items: center;}
+  .flex-row > * { flex: 1;}
+  .footer { text-align: center; padding: 10px; font-size: 14px; color: #888;}
+  .color-swatch {width: 25px; height: 25px; display: inline-block; margin-right: 5px; border: 1px solid #ccc; vertical-align: middle;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="storeName">দোকানের নাম</h1>
+</header>
+
+<section id="loginSection">
+  <h2>লগইন</h2>
+  <input type="text" id="username" placeholder="ইউজার নাম লিখুন" />
+  <input type="password" id="password" placeholder="পাসওয়ার্ড লিখুন" />
+  <button onclick="login()">লগইন</button>
+  <p id="loginMsg" style="color:red;"></p>
+</section>
+
+<section id="posSection" class="hidden">
+  <h2>পণ্য যোগ করুন</h2>
+  <div class="flex-row">
+    <input type="text" id="productName" placeholder="পণ্যের নাম" />
+    <input type="number" id="productPrice" placeholder="মূল্য" />
+    <input type="number" id="productQty" placeholder="পরিমাণ" value="1" />
+  </div>
+  <textarea id="productDesc" placeholder="পণ্যের বিবরণ"></textarea>
+  <button onclick="addProduct()">পণ্য যোগ করুন</button>
+
+  <h2>কার্ট</h2>
+  <table id="cartTable">
+    <thead>
+      <tr><th>পণ্য</th><th>বিবরণ</th><th>পরিমাণ</th><th>মূল্য</th><th>মোট</th><th>অপশন</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <h3>সর্বমোট: <span id="totalAmount">0</span> টাকা</h3>
+  <button onclick="checkout()">চেকআউট</button>
+
+  <h2>ইনভয়েস প্রিন্ট</h2>
+  <button onclick="printInvoice()">প্রিন্ট করুন</button>
+
+  <button onclick="logout()">লগআউট</button>
+</section>
+
+<section id="settingsSection" class="hidden">
+  <h2>সেটিংস</h2>
+  <label>দোকানের নাম</label>
+  <input type="text" id="settingStoreName" placeholder="দোকানের নাম লিখুন" />
+  
+  <label>লোগো আপলোড করুন</label>
+  <input type="file" id="settingLogo" accept="image/*" />
+  <div id="logoPreview"></div>
+
+  <label>ভ্যাট হার (%)</label>
+  <input type="number" id="settingVAT" placeholder="ভ্যাট হার লিখুন" />
+
+  <label>বিকাশ পেমেন্ট লিংক</label>
+  <input type="text" id="settingBkashLink" placeholder="https://shop.bkash.com/..." />
+
+  <button onclick="saveSettings()">সেভ করুন</button>
+</section>
+
+<div class="footer">
+  © 2025 বাংলা POS সিস্টেম
+</div>
+
+<script>
+  // সিম্পল ইউজার ডাটা
+  const users = [
+    {username: 'admin', password: 'admin123', role: 'admin'},
+    {username: 'user', password: 'user123', role: 'user'}
+  ];
+
+  // লগইন ফাংশন
+  function login() {
+    const uname = document.getElementById('username').value.trim();
+    const pass = document.getElementById('password').value.trim();
+    const user = users.find(u => u.username === uname && u.password === pass);
+    if(user) {
+      document.getElementById('loginSection').classList.add('hidden');
+      document.getElementById('posSection').classList.remove('hidden');
+      if(user.role === 'admin') {
+        document.getElementById('settingsSection').classList.remove('hidden');
+      } else {
+        document.getElementById('settingsSection').classList.add('hidden');
+      }
+      loadSettings();
+      document.getElementById('loginMsg').innerText = '';
+    } else {
+      document.getElementById('loginMsg').innerText = 'ইউজারনেম অথবা পাসওয়ার্ড ভুল';
+    }
+  }
+
+  // লগআউট
+  function logout() {
+    location.reload();
+  }
+
+  // পণ্য তালিকা
+  let products = [];
+  // কার্ট
+  let cart = [];
+
+  // পণ্য যোগ
+  function addProduct() {
+    const name = document.getElementById('productName').value.trim();
+    const price = parseFloat(document.getElementById('productPrice').value);
+    const qty = parseInt(document.getElementById('productQty').value);
+    const desc = document.getElementById('productDesc').value.trim();
+    if(!name || isNaN(price) || isNaN(qty) || qty <= 0) {
+      alert('সঠিক তথ্য দিন');
+      return;
+    }
+    const product = {id: Date.now(), name, price, qty, desc};
+    products.push(product);
+    addToCart(product);
+    clearProductInputs();
+    renderCart();
+  }
+
+  function clearProductInputs() {
+    document.getElementById('productName').value = '';
+    document.getElementById('productPrice').value = '';
+    document.getElementById('productQty').value = 1;
+    document.getElementById('productDesc').value = '';
+  }
+
+  // কার্টে পণ্য যোগ
+  function addToCart(product) {
+    const found = cart.find(p => p.id === product.id);
+    if(found) {
+      found.qty += product.qty;
+    } else {
+      cart.push({...product});
+    }
+  }
+
+  // কার্ট রেন্ডার
+  function renderCart() {
+    const tbody = document.querySelector('#cartTable tbody');
+    tbody.innerHTML = '';
+    let total = 0;
+    cart.forEach(item => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${item.name}</td>
+        <td>${item.desc}</td>
+        <td>${item.qty}</td>
+        <td>${item.price.toFixed(2)}</td>
+        <td>${(item.price * item.qty).toFixed(2)}</td>
+        <td><button onclick="removeFromCart(${item.id})">মুছুন</button></td>
+      `;
+      tbody.appendChild(row);
+      total += item.price * item.qty;
+    });
+    // VAT যোগ
+    const vatRate = parseFloat(localStorage.getItem('vat')) || 0;
+    const vatAmount = (total * vatRate) / 100;
+    total += vatAmount;
+    document.getElementById('totalAmount').innerText = total.toFixed(2) + ' টাকা (ভ্যাট: ' + vatAmount.toFixed(2) + ')';
+  }
+
+  function removeFromCart(id) {
+    cart = cart.filter(p => p.id !== id);
+    renderCart();
+  }
+
+  // চেকআউট (বিকাশ পেমেন্ট লিংক সহ)
+  function checkout() {
+    if(cart.length === 0) {
+      alert('কার্ট খালি');
+      return;
+    }
+    const bkashLink = localStorage.getItem('bkashLink');
+    if(bkashLink) {
+      if(confirm('বিকাশ পেমেন্ট পেজে যেতে চান?')) {
+        window.open(bkashLink, '_blank');
+      }
+    }
+    alert('চেকআউট সম্পন্ন হয়েছে!');
+    cart = [];
+    renderCart();
+  }
+
+  // ইনভয়েস প্রিন্ট
+  function printInvoice() {
+    if(cart.length === 0) {
+      alert('কার্ট খালি');
+      return;
+    }
+    let invoiceWindow = window.open('', '', 'width=600,height=600');
+    let vatRate = parseFloat(localStorage.getItem('vat')) || 0;
+    let vatAmount = 0;
+    let total = 0;
+    let itemsHtml = '';
+    cart.forEach(item => {
+      let itemTotal = item.price * item.qty;
+      total += itemTotal;
+      itemsHtml += `<tr><td>${item.name}</td><td>${item.desc}</td><td>${item.qty}</td><td>${item.price.toFixed(2)}</td><td>${itemTotal.toFixed(2)}</td></tr>`;
+    });
+    vatAmount = (total * vatRate) / 100;
+    let grandTotal = total + vatAmount;
+
+    invoiceWindow.document.write(`
+      <html><head><title>ইনভয়েস</title>
+      <style>
+        body { font-family: 'SolaimanLipi', Arial, sans-serif; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left;}
+        h1, h2, h3 { text-align: center;}
+      </style>
+      </head><body>
+      <h1>${localStorage.getItem('storeName') || 'দোকানের নাম'}</h1>
+      <h2>ইনভয়েস</h2>
+      <table>
+        <thead><tr><th>পণ্য</th><th>বিবরণ</th><th>পরিমাণ</th><th>মূল্য</th><th>মোট</th></tr></thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+      <h3>মোট: ${total.toFixed(2)} টাকা</h3>
+      <h3>ভ্যাট (${vatRate}%): ${vatAmount.toFixed(2)} টাকা</h3>
+      <h3>সর্বমোট: ${grandTotal.toFixed(2)} টাকা</h3>
+      <p style="text-align:center; margin-top: 40px;">ধন্যবাদ আপনার ক্রয়ের জন্য।</p>
+      </body></html>
+    `);
+    invoiceWindow.document.close();
+    invoiceWindow.print();
+  }
+
+  // সেটিংস লোড
+  function loadSettings() {
+    const storeName = localStorage.getItem('storeName') || 'দোকানের নাম';
+    const vat = localStorage.getItem('vat') || '';
+    const bkashLink = localStorage.getItem('bkashLink') || '';
+    document.getElementById('storeName').innerText = storeName;
+    document.getElementById('settingStoreName').value = storeName;
+    document.getElementById('settingVAT').value = vat;
+    document.getElementById('settingBkashLink').value = bkashLink;
+
+    // লোগো লোড
+    const logoData = localStorage.getItem('logoData');
+    if(logoData) {
+      const logoPreview = document.getElementById('logoPreview');
+      logoPreview.innerHTML = '<img src="'+logoData+'" alt="Logo" class="logo-preview" />';
+    } else {
+      document.getElementById('logoPreview').innerHTML = '';
+    }
+  }
+
+  // সেটিংস সেভ
+  function saveSettings() {
+    const storeName = document.getElementById('settingStoreName').value.trim() || 'দোকানের নাম';
+    const vat = parseFloat(document.getElementById('settingVAT').value) || 0;
+    const bkashLink = document.getElementById('settingBkashLink').value.trim();
+    localStorage.setItem('storeName', storeName);
+    localStorage.setItem('vat', vat);
+    localStorage.setItem('bkashLink', bkashLink);
+    document.getElementById('storeName').innerText = storeName;
+    alert('সেটিংস সংরক্ষিত হয়েছে');
+  }
+
+  // লোগো আপলোড হ্যান্ডলার
+  document.getElementById('settingLogo').addEventListener('change', function() {
+    const file = this.files[0];
+    if(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        localStorage.setItem('logoData', e.target.result);
+        loadSettings();
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+</script>
+
+</body>
+</html>
